@@ -1,0 +1,12 @@
+# needs manual run of mqtt sub on host
+# mosquitto_sub -h localhost -t "wmbusmeters/51035726" | tee test.txt
+services:
+  wmbusmeters-service:
+    image: wmbusmeters/wmbusmeters
+    container_name: wmbusmeters-service-solo
+    restart: always
+    volumes:
+      - ./common:/wmbusmeters_data
+      - /etc/localtime:/etc/localtime:ro
+    devices:
+      - /dev/ttyACM0

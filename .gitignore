@@ -1,0 +1,13 @@
+*.csv
+!Musterliste.csv
+*.zip
+*.md
+!README.md
+logs/
+.env
+/composing_mqtt_postgres_test/*
+/secrets/*
+/experiment*
+/scripts/env
+*.log
+composing_mqtt_postgres/common/etc/wmbusmeters.d

@@ -1,0 +1,126 @@
+# Copyright (C) 2024-2025 Leon Ambaum (gpl-3.0-or-later)
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+services:
+  wmbusmeters-service:
+    image: wmbusmeters/wmbusmeters
+    container_name: wmbusmeters-service
+    restart: always
+    volumes:
+      - ./common:/wmbusmeters_data
+      - /etc/localtime:/etc/localtime:ro
+    devices:
+      - /dev/ttyACM0
+    environment:
+      - MQTT_TOPIC=${MQTT_TOPIC}
+    depends_on:
+      - mqtt_broker
+  
+  mqtt_broker:
+    image: eclipse-mosquitto
+    container_name: mqtt_broker
+    volumes:
+      - ./mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  mqtt_sub:
+    build: ./mqtt_sub
+    container_name: mqtt_sub
+    profiles:
+      - prod
+    environment:
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST}
+      - MQTT_TOPIC=${MQTT_TOPIC}
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - TIMESCALE_URI=postgresql://${DB_USER}:${DB_PASSWORD}@timescale:${DB_PORT}/${DB_NAME}
+    depends_on:
+      mqtt_broker:
+        condition: service_started
+      # db:
+      #   condition: service_healthy
+      timescale:
+        condition: service_healthy
+  
+  # db:
+  #   image: postgres:17.4
+  #   container_name: db
+  #   environment:
+  #     - POSTGRES_USER=${DB_USER}
+  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
+  #     - POSTGRES_DB=${DB_NAME}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - ./db_init:/docker-entrypoint-initdb.d
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
+  timescale:
+    image: timescale/timescaledb:2.18.1-pg17
+    container_name: timescale
+    profiles:
+      - prod
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+      - DB_RO_USER=${DB_RO_USER}
+      - DB_RO_PASSWORD=${DB_RO_PASSWORD}
+    volumes:
+      - ./timescale_data:/var/lib/postgresql/data
+      - ./db_init_timescale:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flask_api:
+    build: ./flask_api
+    container_name: flask_api
+    profiles:
+      - prod
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_RO_USER}
+      - DB_PASSWORD=${DB_RO_PASSWORD}
+    depends_on:
+      timescale:
+        condition: service_healthy
+
+  # mongodb:
+  #   image: mongo:latest
+  #   profiles:
+  #     - disabled
+  #   container_name: mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - ./mongo/data:/data/db
+  #   environment:
+  #     - MONGO_INITDB_ROOT_USERNAME=root
+  #     - MONGO_INITDB_ROOT_PASSWORD=rootpassword
+
+# TODO update .env password
