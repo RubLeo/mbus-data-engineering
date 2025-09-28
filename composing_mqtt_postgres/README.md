@@ -16,4 +16,3 @@ all:
 ## Backlog
 - TODO maybe: make it microk8s / k3s
 - TODO persist db
-- TODO update .env password
